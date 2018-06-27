@@ -42,11 +42,27 @@ public class Main {
 
     @SuppressWarnings("ConstantConditions")
     public static void main(String[] args) throws Exception {
-        List<File> files = new ArrayList<>(Arrays.asList(new File(".").listFiles(filter)));
-        File regionDir = new File(".", "region");
+
+        File dir;
+        if (args.length > 0) {
+            dir = new File(String.join(" ", args));
+            if (!dir.exists()) {
+                System.out.println("Папка " + dir + " не найдена.");
+                return;
+            } else if (!dir.isDirectory()) {
+                System.out.println("Это не папка - " + dir + ".");
+                return;
+            }
+        } else {
+            dir = new File(".");
+        }
+
+        List<File> files = new ArrayList<>(Arrays.asList(dir.listFiles(filter)));
+        File regionDir = new File(dir, "region");
         if (regionDir.exists() && regionDir.isDirectory()) {
             files.addAll(Arrays.asList(regionDir.listFiles(filter)));
         }
+
 
         System.out.println("Начинаем фиксить регионы в текущей папке, найдено " + files.size() + " файлов типа *.mca.");
 
