@@ -88,23 +88,24 @@ public class Main {
     private static int fixRegion(File file) throws IOException {
         int fixed = 0;
 
-        RegionFile regionFile = new RegionFile(file);
-        long LastUpdateMax = LastUpdateDef;
-        for (int x = 0; x < 32; x++) {
-            for (int z = 0; z < 32; z++) {
-                if (regionFile.hasChunk(x, z)) {
-                    try (DataInputStream inputStream = regionFile.getChunkDataInputStream(x, z)) {
-                        Map<String, Object> read = NBTStreamReader.read(inputStream, false);
-                        Map<String, Object> level = (Map<String, Object>) read.get("Level");
-                        Long lastUpdate = (Long) level.get("LastUpdate");
-                        if (lastUpdate != null) {
-                            LastUpdateMax = Math.max(LastUpdateMax, lastUpdate);
-                        }
-                    } catch (Exception e) {
-                        System.out.println("Ошибка считывания чанка file=" + file.getName() + " x=" + x + " z=" + z + ": " + e + ". Удаляем чанк...");
-                        try (DataOutputStream outputStream = regionFile.getChunkDataOutputStream(x, z)) {
-                            NBTStreamWriter.write(outputStream, getEmptyChunk(x, z, LastUpdateMax), false);
-                            fixed++;
+        try (RegionFile regionFile = new RegionFile(file)) {
+            long LastUpdateMax = LastUpdateDef;
+            for (int x = 0; x < 32; x++) {
+                for (int z = 0; z < 32; z++) {
+                    if (regionFile.hasChunk(x, z)) {
+                        try (DataInputStream inputStream = regionFile.getChunkDataInputStream(x, z)) {
+                            Map<String, Object> read = NBTStreamReader.read(inputStream, false);
+                            Map<String, Object> level = (Map<String, Object>) read.get("Level");
+                            Long lastUpdate = (Long) level.get("LastUpdate");
+                            if (lastUpdate != null) {
+                                LastUpdateMax = Math.max(LastUpdateMax, lastUpdate);
+                            }
+                        } catch (Exception e) {
+                            System.out.println("Ошибка считывания чанка file=" + file.getName() + " x=" + x + " z=" + z + ": " + e + ". Удаляем чанк...");
+                            try (DataOutputStream outputStream = regionFile.getChunkDataOutputStream(x, z)) {
+                                NBTStreamWriter.write(outputStream, getEmptyChunk(x, z, LastUpdateMax), false);
+                                fixed++;
+                            }
                         }
                     }
                 }
