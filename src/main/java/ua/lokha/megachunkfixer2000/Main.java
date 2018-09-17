@@ -1,47 +1,26 @@
 package ua.lokha.megachunkfixer2000;
 
+import ua.lokha.megachunkfixer2000.logger.LoggerInstaller;
+
 import java.io.*;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Logger;
 
 @SuppressWarnings({"UtilityClassCanBeEnum", "UtilityClass", "unchecked"})
 public class Main {
 
-    private static Map<String, Object> emptyChunkExample = new HashMap<>();
-
-    private static final long LastUpdateDef = 537158390L;
-
-    static {
-        Map<String, Object> levelMap = new HashMap<>();
-        levelMap.put("xPos", 0);
-        levelMap.put("zPos", 0);
-        levelMap.put("LastUpdate", LastUpdateDef);
-        levelMap.put("LightPopulated", (byte) 0);
-        levelMap.put("HeightMap", new int[256]);
-        levelMap.put("Sections", new ArrayList<>());
-        levelMap.put("Biomes", new byte[256]);
-        levelMap.put("InhabitedTime", 0L);
-        levelMap.put("TileEntities", new ArrayList<>());
-        levelMap.put("TerrainPopulated", (byte) 0);
-        levelMap.put("Entities", new ArrayList<>());
-
-        emptyChunkExample.put("Level", levelMap);
-        emptyChunkExample.put("DataVersion", 1343);
-    }
-
-    public static Map<String, Object> getEmptyChunk(int x, int z, long LastUpdate) {
-        Map<String, Object> levelMap = (Map<String, Object>) emptyChunkExample.get("Level");
-        levelMap.put("xPos", x);
-        levelMap.put("zPos", z);
-        levelMap.put("LastUpdate", LastUpdate);
-
-        return emptyChunkExample;
-    }
-
     private static final FilenameFilter filter = (dir, name) -> name.endsWith(".mca");
+    private static DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
 
     @SuppressWarnings("ConstantConditions")
     public static void main(String[] args) throws Exception {
+
+        final Logger logger = LoggerInstaller.create("mega-chunk-fixer-2000", "mega-chunk-fixer-2000.log");
+        logger.info("Старт исправления чанков " + dateFormat.format(new Date()));
 
         File dir;
         if (args.length > 0) {
@@ -67,11 +46,11 @@ public class Main {
         System.out.println("Начинаем фиксить регионы в текущей папке, найдено " + files.size() + " файлов типа *.mca.");
 
         int div10 = files.size() / 10;
-        int fixedTotal = 0;
+        int deletedTotal = 0;
 
         for (int i = 0; i < files.size(); i++) {
             try {
-                fixedTotal += fixRegion(files.get(i));
+                deletedTotal += fixRegion(files.get(i));
             } catch (Exception e) {
                 System.out.println("Ошибка обработки региона " + files.get(i).getName());
                 e.printStackTrace();
@@ -82,35 +61,144 @@ public class Main {
             }
         }
 
-        System.out.println("Всего было исправлено " + fixedTotal + " чанков.");
+        System.out.println("Всего было удалено " + deletedTotal + " чанков.");
     }
 
     private static int fixRegion(File file) throws IOException {
-        int fixed = 0;
+        int deleted = 0;
 
         try (RegionFile regionFile = new RegionFile(file)) {
-            long LastUpdateMax = LastUpdateDef;
             for (int x = 0; x < 32; x++) {
                 for (int z = 0; z < 32; z++) {
                     if (regionFile.hasChunk(x, z)) {
+                        boolean deleteChunk = false;
+                        Map<String, Object> root;
                         try (DataInputStream inputStream = regionFile.getChunkDataInputStream(x, z)) {
-                            Map<String, Object> read = NBTStreamReader.read(inputStream, false);
-                            Map<String, Object> level = (Map<String, Object>) read.get("Level");
-                            Long lastUpdate = (Long) level.get("LastUpdate");
-                            if (lastUpdate != null) {
-                                LastUpdateMax = Math.max(LastUpdateMax, lastUpdate);
+                            root = NBTStreamReader.read(inputStream, false);
+                            Map<String, Object> level = (Map<String, Object>) root.get("Level");
+
+                            if (checkPos(regionFile, level, x, z)) {
+                                deleteChunk = true;
+                            } else if (checkSections(regionFile, level, x, z)) {
+                                deleteChunk = true;
                             }
                         } catch (Exception e) {
-                            System.out.println("Ошибка считывания чанка file=" + file.getName() + " x=" + x + " z=" + z + ": " + e + ". Удаляем чанк...");
-                            try (DataOutputStream outputStream = regionFile.getChunkDataOutputStream(x, z)) {
-                                NBTStreamWriter.write(outputStream, getEmptyChunk(x, z, LastUpdateMax), false);
-                                fixed++;
+                            System.out.println("Ошибка считывания чанка file=" + file.getName() + " x=" + x + " z=" + z + ": " + e + ". " +
+                                    "Удаляем чанк...");
+                            deleteChunk = true;
+                        }
+
+                        if (deleteChunk) {
+                            deleted++;
+                            try {
+                                regionFile.deleteChunk(x, z);
+                            } catch (Exception e) {
+                                e.printStackTrace();
                             }
                         }
                     }
                 }
             }
         }
-        return fixed;
+        return deleted;
+    }
+
+    private static boolean checkPos(RegionFile regionFile, Map<String, Object> level, int x, int z) {
+        return Try.ignore(() -> {
+            final String[] regionNameData = regionFile.getFileName().split("\\.");
+            int regionX = Integer.parseInt(regionNameData[1]);
+            int regionZ = Integer.parseInt(regionNameData[2]);
+
+            final Number xPos = (Number) level.get("xPos");
+            final Number zPos = (Number) level.get("zPos");
+            final int realX = (regionX << 5) + x;
+            final int realZ = (regionZ << 5) + z;
+
+            if (xPos == null
+                    || xPos.intValue() != realX
+                    || zPos == null
+                    || zPos.intValue() != realZ) {
+                System.out.println("Чанк file=" + regionFile.getFileName() + " x=" + x + " z=" + z +
+                        " находится не на тех координатах " + xPos + "," + zPos +
+                        ", а нужно " + realX + "," + realZ + ". " +
+                        "Удаляем чанк...");
+                return true;
+            }
+            return false;
+        }, false);
+    }
+
+    private static boolean checkSections(RegionFile regionFile, Map<String, Object> level, int x, int z) {
+        return Try.ignore(() -> {
+            AtomicBoolean deleteChunk = new AtomicBoolean(false);
+
+            final List<Map<String, Object>> sections = (List<Map<String, Object>>) level.get("Sections");
+            final Iterator<Map<String, Object>> iterator = sections.iterator();
+            while (iterator.hasNext() && !deleteChunk.get()) {
+                final Map<String, Object> section = iterator.next();
+                try {
+                    final byte[] blocks = (byte[]) section.get("Blocks");
+                    final byte[] skyLights = (byte[]) section.get("SkyLight");
+                    final byte[] blockLights = (byte[]) section.get("BlockLight");
+                    final byte[] data = (byte[]) section.get("Data");
+                    final byte[] add = (byte[]) section.get("Add");
+
+                    final Number y = (Number) section.get("Y");
+
+                    if (blocks == null) {
+                        System.out.println("В чанке file=" + regionFile.getFileName() + " x=" + x + " z=" + z +
+                                " в секции y=" + y + " отсутствует массив Blocks. " +
+                                "Удаляем чанк...");
+                        deleteChunk.set(true);
+                    } else if (data == null) {
+                        System.out.println("В чанке file=" + regionFile.getFileName() + " x=" + x + " z=" + z +
+                                " в секции y=" + y + " отсутствует массив Data. " +
+                                "Удаляем чанк...");
+                        deleteChunk.set(true);
+                    } else if (skyLights == null) {
+                        System.out.println("В чанке file=" + regionFile.getFileName() + " x=" + x + " z=" + z +
+                                " в секции y=" + y + " отсутствует массив SkyLight. " +
+                                "Удаляем чанк...");
+                        deleteChunk.set(true);
+                    } else if (blockLights == null) {
+                        System.out.println("В чанке file=" + regionFile.getFileName() + " x=" + x + " z=" + z +
+                                " в секции y=" + y + " отсутствует массив BlockLight. " +
+                                "Удаляем чанк...");
+                        deleteChunk.set(true);
+                    } else if (blocks.length != 4096) {
+                        System.out.println("В чанке file=" + regionFile.getFileName() + " x=" + x + " z=" + z +
+                                " секция y=" + y + " содержит массив Blocks неправильной длины " + blocks.length + ", а нужно 4096. " +
+                                "Удаляем чанк...");
+                        deleteChunk.set(true);
+                    } else if (data.length != 2048) {
+                        System.out.println("В чанке file=" + regionFile.getFileName() + " x=" + x + " z=" + z +
+                                " секция y=" + y + " содержит массив Data неправильной длины " + data.length + ", а нужно 2048. " +
+                                "Удаляем чанк...");
+                        deleteChunk.set(true);
+                    } else if (blockLights.length != 2048) {
+                        System.out.println("В чанке file=" + regionFile.getFileName() + " x=" + x + " z=" + z +
+                                " секция y=" + y + " содержит массив BlockLight неправильной длины " + blockLights.length + ", а нужно 2048. " +
+                                "Удаляем чанк...");
+                        deleteChunk.set(true);
+                    } else if (skyLights.length != 2048) {
+                        System.out.println("В чанке file=" + regionFile.getFileName() + " x=" + x + " z=" + z +
+                                " секция y=" + y + " содержит массив SkyLight неправильной длины " + skyLights.length + ", а нужно 2048. " +
+                                "Удаляем чанк...");
+                        deleteChunk.set(true);
+                    } else if (add != null && add.length != 2048) {
+                        System.out.println("В чанке file=" + regionFile.getFileName() + " x=" + x + " z=" + z +
+                                " секция y=" + y + " содержит массив Add неправильной длины " + add.length + ", а нужно 2048. " +
+                                "Удаляем чанк...");
+                        deleteChunk.set(true);
+                    }
+                } catch (Exception e) {
+                    System.out.println("В чанке file=" + regionFile.getFileName() + " x=" + x + " z=" + z + " " +
+                            "произошла ошибка при обработке секции " + section);
+                    e.printStackTrace();
+                }
+            }
+
+            return deleteChunk.get();
+        }, false);
     }
 }

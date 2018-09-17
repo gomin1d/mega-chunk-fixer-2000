@@ -96,6 +96,10 @@ public class RegionFile implements Closeable {
 		}
 	}
 
+	public String getFileName() {
+		return fileName.getName();
+	}
+
 	/* the modification date of the region file when it was first opened */
 	public long lastModified() {
 		return lastModified;
@@ -298,6 +302,16 @@ public class RegionFile implements Closeable {
 		chunkTimestamps[x + z * 32] = value;
 		file.seek(SECTOR_BYTES + (x + z * 32) * 4);
 		file.writeInt(value);
+	}
+
+	public synchronized void deleteChunk(int x, int z) {
+		try {
+			setOffset(x,z,0);
+			setTimestamp(x, z, 0);
+			debug("Region deleted chunk");
+		} catch (IOException e) {
+			debug("REGION could not delete chunk");
+		}
 	}
 
 	@Override
