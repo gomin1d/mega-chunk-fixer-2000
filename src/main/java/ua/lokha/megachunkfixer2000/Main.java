@@ -56,7 +56,7 @@ public class Main {
                 e.printStackTrace();
             } finally {
                 if (div10 != 0 && i % div10 == 0) {
-                    System.out.println("Проверяем чанки " + i + "/" + files.size());
+                    System.out.println("Проверяем регионы " + i + "/" + files.size());
                 }
             }
         }
