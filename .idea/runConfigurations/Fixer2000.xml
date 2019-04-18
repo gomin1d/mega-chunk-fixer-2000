@@ -2,7 +2,7 @@
   <configuration default="false" name="Fixer2000" type="JarApplication" factoryName="JAR Application" singleton="true">
     <option name="JAR_PATH" value="$PROJECT_DIR$/target/mega-chunk-fixer-2000.jar" />
     <option name="VM_PARAMETERS" value="-Xmx512M -Dfile.encoding=UTF-8" />
-    <option name="PROGRAM_PARAMETERS" value="test-regions" />
+    <option name="PROGRAM_PARAMETERS" value="test-regions --clean-unused-space" />
     <option name="WORKING_DIRECTORY" value="WorkingDirectory" />
     <option name="ALTERNATIVE_JRE_PATH" />
     <method v="2">
