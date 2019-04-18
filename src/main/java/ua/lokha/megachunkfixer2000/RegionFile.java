@@ -121,7 +121,7 @@ public class RegionFile implements Closeable {
 
             file.seek(pos);
             int length = file.readInt();
-            int sectorsLength = getSectorsLengthByLength(length + 1);
+            int sectorsNeeded = (length - 1 + CHUNK_HEADER_SIZE) / SECTOR_BYTES + 1;
 
             if (pos > nextPos) {
                 chunkMoveTotal++;
@@ -132,12 +132,13 @@ public class RegionFile implements Closeable {
                 file.writeInt(length);
                 file.write(bytes, 0, bytes.length);
 
-                int sectorsNeeded = (length - 1 + CHUNK_HEADER_SIZE) / SECTOR_BYTES + 1;
                 int nextOffset = (((nextPos / SECTOR_BYTES) << 8) | sectorsNeeded);
                 this.setOffset(chunkOffset.getX(), chunkOffset.getZ(), nextOffset);
+            } else if (pos < nextPos) {
+                System.out.println("WOW");
             }
 
-            nextPos += sectorsLength;
+            nextPos += sectorsNeeded * SECTOR_BYTES;
         }
 
         if (file.length() > nextPos) {
@@ -150,15 +151,6 @@ public class RegionFile implements Closeable {
         }
 
         this.recreateIndexes();
-    }
-
-    private static int getSectorsLengthByLength(int length) {
-        int temp = length;
-        int i = 1;
-        for (; temp > SECTOR_BYTES; i++) {
-            temp -= SECTOR_BYTES;
-        }
-        return i * SECTOR_BYTES;
     }
 
     @Data
