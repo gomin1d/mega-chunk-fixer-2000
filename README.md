@@ -30,7 +30,7 @@ Maven:
 <dependency>
     <groupId>com.github.lokha</groupId>
     <artifactId>mega-chunk-fixer-2000</artifactId>
-    <version>2.1</version>
+    <version>3.0</version>
 </dependency>
 ```
 
@@ -54,7 +54,7 @@ try (RegionFile regionFile = new RegionFile(file)) {
 ```
 
 Метод `RegionFile::deleteChunk` не уменьшает файл региона, он лишь помечает чанк удаленным, и это нормально.  
-Чтобы очистить место, которое занимал чанк, нужно переместить остальные чанки на его место и обрещать файл региона, нужно вызвать `RegionFile::clearUnusedSpace`:
+Чтобы очистить место, которое занимал чанк, нужно переместить остальные чанки на его место и обрезать файл региона, нужно вызвать `RegionFile::clearUnusedSpace`:
 ```java
 // удаляем чанки
 regionFile.deleteChunk(chunkX1, chunkZ1);
