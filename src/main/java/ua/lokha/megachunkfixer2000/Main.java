@@ -23,9 +23,13 @@ public class Main {
         ParseArgs parseArgs = ParseArgs.parse(args);
         List<File> files = parseArgs.getRegions();
         boolean cleanUnusedSpace = parseArgs.hasFlag("--clean-unused-space");
+        boolean deleteEmptyRegions = parseArgs.hasFlag("--delete-empty-regions");
 
         if (cleanUnusedSpace) {
             System.out.println("Обнаружен флаг --clean-unused-space, будет выполнена очистка неиспользуемого пространства в регионах.");
+        }
+        if (deleteEmptyRegions) {
+            System.out.println("Обнаружен флаг --delete-empty-regions, будет выполнено удаление регионов без чанков.");
         }
         System.out.println("Начинаем фиксить регионы в папке " + parseArgs.getDir() + ", найдено " + files.size() + " файлов типа *.mca.");
 
@@ -40,7 +44,7 @@ public class Main {
                 if (cleanUnusedSpace) {
                     beforeCleanUsedTotal += file.length();
                 }
-                deletedTotal += fixRegion(file, cleanUnusedSpace);
+                deletedTotal += fixRegion(file, cleanUnusedSpace, deleteEmptyRegions);
                 if (cleanUnusedSpace) {
                     afterCleanUsedTotal += file.length();
                 }
@@ -61,10 +65,15 @@ public class Main {
                     "до " + Utils.toLogLength(afterCleanUsedTotal) + " " +
                     "(-" + Utils.toLogPercent(afterCleanUsedTotal, beforeCleanUsedTotal) + "%).");
         }
+        if (deleteEmptyRegions) {
+            long count = files.stream().filter(File::exists).count();
+            System.out.println("Было удалено " + (files.size() - count) + " пустых регионов, в которых нет ни одного чанка.");
+        }
     }
 
-    private static int fixRegion(File file, boolean clearUnusedSpace) {
+    private static int fixRegion(File file, boolean clearUnusedSpace, boolean deleteEmptyRegions) {
         int deleted = 0;
+        int chunkCount = 0;
 
         try (RegionFile regionFile = new RegionFile(file)) {
             for (int x = 0; x < 32; x++) {
@@ -94,6 +103,8 @@ public class Main {
                             } catch (Exception e) {
                                 e.printStackTrace();
                             }
+                        } else {
+                            chunkCount++;
                         }
                     }
                 }
@@ -102,6 +113,11 @@ public class Main {
             if (clearUnusedSpace) {
                 regionFile.clearUnusedSpace();
             }
+        }
+
+        if (chunkCount == 0 && deleteEmptyRegions) {
+            System.out.println("Регион " + file.getName() + " не содержит ни одного чанка, удаляем его...");
+            file.delete();
         }
         return deleted;
     }
