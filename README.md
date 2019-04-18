@@ -16,3 +16,50 @@ Fixed minecraft chunks.
 
 Список флагов:
 *  `--clean-unused-space` - очищаем неиспользуемое пространство в файлах регионов, которое возникает в процессе перезаписывания чанков сервером.
+
+# API
+Вы можете использовать эту утилиту в качестве библиотеки.
+
+Maven:
+```xml
+<repository>
+    <id>jitpack.io</id>
+    <url>https://jitpack.io</url>
+</repository>
+
+<dependency>
+    <groupId>com.github.lokha</groupId>
+    <artifactId>mega-chunk-fixer-2000</artifactId>
+    <version>2.1</version>
+</dependency>
+```
+
+Удаление чанка:  
+*Размер файла региона не изменится, подробнее ниже.*
+```java
+int chunkX = 2; // относительная координата от 0 до 31!
+int chunkZ = 3; // относительная координата от 0 до 31!
+File file = new File("r.0.0.mca");
+try (RegionFile regionFile = new RegionFile(file)) {
+    regionFile.deleteChunk(chunkX, chunkZ);
+}
+```
+
+Очистка неиспользуемого пространства:
+```java
+File file = new File("r.0.0.mca");
+try (RegionFile regionFile = new RegionFile(file)) {
+    regionFile.clearUnusedSpace();
+}
+```
+
+Метод `RegionFile::deleteChunk` не уменьшает файл региона, он лишь помечает чанк удаленным, и это нормально.  
+Чтобы очистить место, которое занимал чанк, нужно переместить остальные чанки на его место и обрещать файл региона, нужно вызвать `RegionFile::clearUnusedSpace`:
+```java
+// удаляем чанки
+regionFile.deleteChunk(chunkX1, chunkZ1);
+regionFile.deleteChunk(chunkX2, chunkZ2);
+
+// чистим место
+regionFile.clearUnusedSpace();
+```
