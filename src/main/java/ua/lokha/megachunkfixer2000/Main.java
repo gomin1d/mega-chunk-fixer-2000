@@ -64,7 +64,7 @@ public class Main {
         System.out.println("Всего было удалено " + deletedTotal + " чанков.");
     }
 
-    private static int fixRegion(File file) throws IOException {
+    private static int fixRegion(File file) {
         int deleted = 0;
 
         try (RegionFile regionFile = new RegionFile(file)) {
