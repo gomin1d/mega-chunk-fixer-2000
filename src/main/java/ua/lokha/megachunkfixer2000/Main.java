@@ -13,46 +13,39 @@ import java.util.logging.Logger;
 @SuppressWarnings({"UtilityClassCanBeEnum", "UtilityClass", "unchecked"})
 public class Main {
 
-    private static final FilenameFilter filter = (dir, name) -> name.endsWith(".mca");
     private static DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
 
-    @SuppressWarnings("ConstantConditions")
     public static void main(String[] args) throws Exception {
 
         final Logger logger = LoggerInstaller.create("mega-chunk-fixer-2000", "mega-chunk-fixer-2000.log");
         logger.info("Старт исправления чанков " + dateFormat.format(new Date()));
 
-        File dir;
-        if (args.length > 0) {
-            dir = new File(String.join(" ", args));
-            if (!dir.exists()) {
-                System.out.println("Папка " + dir + " не найдена.");
-                return;
-            } else if (!dir.isDirectory()) {
-                System.out.println("Это не папка - " + dir + ".");
-                return;
-            }
-        } else {
-            dir = new File(".");
+        ParseArgs parseArgs = ParseArgs.parse(args);
+        List<File> files = parseArgs.getRegions();
+        boolean cleanUnusedSpace = parseArgs.hasFlag("--clean-unused-space");
+
+        if (cleanUnusedSpace) {
+            System.out.println("Обнаружен флаг --clean-unused-space, будет выполнена очистка неиспользуемого пространства в регионах.");
         }
+        System.out.println("Начинаем фиксить регионы в папке " + parseArgs.getDir() + ", найдено " + files.size() + " файлов типа *.mca.");
 
-        List<File> files = new ArrayList<>(Arrays.asList(dir.listFiles(filter)));
-        File regionDir = new File(dir, "region");
-        if (regionDir.exists() && regionDir.isDirectory()) {
-            files.addAll(Arrays.asList(regionDir.listFiles(filter)));
-        }
-
-
-        System.out.println("Начинаем фиксить регионы в текущей папке, найдено " + files.size() + " файлов типа *.mca.");
+        int deletedTotal = 0;
+        int beforeCleanUsedTotal = 0;
+        int afterCleanUsedTotal = 0;
 
         int div10 = files.size() / 10;
-        int deletedTotal = 0;
-
         for (int i = 0; i < files.size(); i++) {
+            File file = files.get(i);
             try {
-                deletedTotal += fixRegion(files.get(i));
+                if (cleanUnusedSpace) {
+                    beforeCleanUsedTotal += file.length();
+                }
+                deletedTotal += fixRegion(file, cleanUnusedSpace);
+                if (cleanUnusedSpace) {
+                    afterCleanUsedTotal += file.length();
+                }
             } catch (Exception e) {
-                System.out.println("Ошибка обработки региона " + files.get(i).getName());
+                System.out.println("Ошибка обработки региона " + file.getName());
                 e.printStackTrace();
             } finally {
                 if (div10 != 0 && i % div10 == 0) {
@@ -62,9 +55,15 @@ public class Main {
         }
 
         System.out.println("Всего было удалено " + deletedTotal + " чанков.");
+        if (cleanUnusedSpace) {
+            System.out.println("Было очищено пространство " +
+                    "с " + Utils.toLogLength(beforeCleanUsedTotal) + " " +
+                    "до " + Utils.toLogLength(afterCleanUsedTotal) + " " +
+                    "(-" + Utils.toLogPercent(afterCleanUsedTotal, beforeCleanUsedTotal) + "%).");
+        }
     }
 
-    private static int fixRegion(File file) {
+    private static int fixRegion(File file, boolean clearUnusedSpace) {
         int deleted = 0;
 
         try (RegionFile regionFile = new RegionFile(file)) {
@@ -98,6 +97,10 @@ public class Main {
                         }
                     }
                 }
+            }
+
+            if (clearUnusedSpace) {
+                regionFile.clearUnusedSpace();
             }
         }
         return deleted;

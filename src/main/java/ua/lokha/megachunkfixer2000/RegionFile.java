@@ -111,8 +111,9 @@ public class RegionFile implements Closeable {
 
         offsets.sort(Comparator.comparingInt(ChunkOffset::getOffset));
 
-        int nextPos = 2 * SECTOR_BYTES;
+        int chunkMoveTotal = 0;
 
+        int nextPos = 2 * SECTOR_BYTES;
         for (ChunkOffset chunkOffset : offsets) {
             int offset = chunkOffset.getOffset();
 
@@ -123,11 +124,7 @@ public class RegionFile implements Closeable {
             int sectorsLength = getSectorsLengthByLength(length + 1);
 
             if (pos > nextPos) {
-                System.out.println("Обнаружено пустое пространство " + (pos - nextPos) + " байт перед чанком " +
-                        "x = " + chunkOffset.getX() + ", " +
-                        "z = " + chunkOffset.getZ() + " " +
-                        "в регионе " + this.getFileName() + ", " +
-                        "перещаем чанк...");
+                chunkMoveTotal++;
                 byte[] bytes = new byte[length];
                 file.read(bytes);
 
@@ -144,8 +141,11 @@ public class RegionFile implements Closeable {
         }
 
         if (file.length() > nextPos) {
-            System.out.println("Сокращаем длину региона " + this.getFileName() + " на " + (file.length() - nextPos) + " байт " +
-                    "(-" + String.format("%.2f", 100 - ((double)nextPos / file.length()) * 100) + "%).");
+            System.out.println("Сокращаем длину региона " + this.getFileName() + " " +
+                    "с " + Utils.toLogLength(file.length()) + " " +
+                    "до " + Utils.toLogLength(nextPos) + " " +
+                    "(-" + Utils.toLogPercent(nextPos, file.length()) + "%), " +
+                    "было перемещено " + chunkMoveTotal + " чанков.");
             file.setLength(nextPos);
         }
 
